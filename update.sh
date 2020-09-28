@@ -4,8 +4,10 @@
 readonly CPU_LIMIT_AC=40
 readonly CPU_LIMIT_BATTERY=10
 
-readonly DUPLICACY_CHANNEL=Latest
-# readonly DUPLICACY_CHANNEL=Stable
+## Acceptable values are Latest, Stable, or specific version
+# readonly REQUESTED_CLI_VERSION=Latest
+# readonly REQUESTED_CLI_VERSION=Stable
+readonly REQUESTED_CLI_VERSION="2.7.0"
 
 # Setup
 readonly REPOSITORY_ROOT='/Users'
@@ -35,26 +37,34 @@ function update_duplicacy_binary()
 {
     mkdir -p ${DUPLICACY_CONFIG_DIR}
     
-case "${DUPLICACY_CHANNEL}" in 
-Stable|stable) KEY_NAME='.stable' ;;
-Latest|latest) KEY_NAME='.latest' ;;
-*) echo "Unrecognised update channel ${DUPLICACY_CHANNEL}. Defaulting to Stable"; KEY_NAME='.stable' ;;
-esac
+    case "${REQUESTED_CLI_VERSION}" in 
+    Stable|stable) 
+        SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.stable' 2>/dev/null) 
+        ;;
+    Latest|latest) 
+        SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.latest' 2>/dev/null) 
+        ;;
+    *) if [[ "${REQUESTED_CLI_VERSION}"  =~ ^[0-9.]+$ ]] ; then 
+         SELECTED_VERSION="${REQUESTED_CLI_VERSION}" 
+       else 
+         echo "Unrecognised update channel ${REQUESTED_CLI_VERSION}. Defaulting to Stable"; 
+         SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.stable' 2>/dev/null) 
+       fi 
+       ;;
+    esac
     
-    AVAILABLE_STABLE_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r ${KEY_NAME} 2>/dev/null)
-
-    LOCAL_EXECUTABLE_NAME="${DUPLICACY_CONFIG_DIR}/duplicacy_osx_x64_${AVAILABLE_STABLE_VERSION}"
+    LOCAL_EXECUTABLE_NAME="${DUPLICACY_CONFIG_DIR}/duplicacy_osx_x64_${SELECTED_VERSION}"
 
     if [ -f "${LOCAL_EXECUTABLE_NAME}" ] 
     then
-       echo "Version ${AVAILABLE_STABLE_VERSION} is up to date"
+       echo "Version ${SELECTED_VERSION} is up to date"
     else
-        DOWNLOAD_URL="${DOWNLOAD_ROOT}/v${AVAILABLE_STABLE_VERSION}/duplicacy_osx_x64_${AVAILABLE_STABLE_VERSION}"
+        DOWNLOAD_URL="${DOWNLOAD_ROOT}/v${SELECTED_VERSION}/duplicacy_osx_x64_${SELECTED_VERSION}"
         if wget -O "${LOCAL_EXECUTABLE_NAME}" "${DOWNLOAD_URL}" ; then 
             chmod +x "${LOCAL_EXECUTABLE_NAME}"
             rm -f "${TARGET_EXECUTABLE}"
             ln -s "${LOCAL_EXECUTABLE_NAME}" "${TARGET_EXECUTABLE}"
-            echo "Updated to ${AVAILABLE_STABLE_VERSION}"
+            echo "Updated to ${SELECTED_VERSION}"
         else
             echo "Could not download ${DOWNLOAD_URL}"
             rm -f "${LOCAL_EXECUTABLE_NAME}"
