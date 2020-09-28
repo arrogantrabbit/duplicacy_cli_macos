@@ -4,6 +4,9 @@
 readonly CPU_LIMIT_AC=40
 readonly CPU_LIMIT_BATTERY=10
 
+readonly DUPLICACY_CHANNEL=Latest
+# readonly DUPLICACY_CHANNEL=Stable
+
 # Setup
 readonly REPOSITORY_ROOT='/Users'
 readonly TARGET_EXECUTABLE='/usr/local/bin/duplicacy'
@@ -32,7 +35,13 @@ function update_duplicacy_binary()
 {
     mkdir -p ${DUPLICACY_CONFIG_DIR}
     
-    AVAILABLE_STABLE_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.stable' 2>/dev/null)
+case "${DUPLICACY_CHANNEL}" in 
+Stable|stable) KEY_NAME='.stable' ;;
+Latest|latest) KEY_NAME='.latest' ;;
+*) echo "Unrecognised update channel ${DUPLICACY_CHANNEL}. Defaulting to Stable"; KEY_NAME='.stable' ;;
+esac
+    
+    AVAILABLE_STABLE_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r ${KEY_NAME} 2>/dev/null)
 
     LOCAL_EXECUTABLE_NAME="${DUPLICACY_CONFIG_DIR}/duplicacy_osx_x64_${AVAILABLE_STABLE_VERSION}"
 
@@ -139,8 +148,6 @@ return 0;
 }
 
 
-# Do the thing
-
 check_utilities || exit $?
 
 if [[ $(id -u) != 0 ]]; then
@@ -148,8 +155,9 @@ if [[ $(id -u) != 0 ]]; then
     exit $?
 fi
 
-launchctl unload "${LAUNCHD_BACKUP_PLIST}"
 
+echo "Stopping and unloading existing daemon"
+launchctl unload "${LAUNCHD_BACKUP_PLIST}" 2>/dev/null
 
 update_duplicacy_binary || exit $?
 
@@ -157,4 +165,7 @@ prepare_launchd_backup_plist || exit $?
 
 prepare_duplicacy_scripting || exit $?
 
-launchctl load -w "${LAUNCHD_BACKUP_PLIST}"
+echo Loading the daemon "${LAUNCHD_BACKUP_NAME}"
+launchctl load -w "${LAUNCHD_BACKUP_PLIST}" || exit $?
+
+echo Success.
