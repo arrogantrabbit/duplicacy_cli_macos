@@ -1,8 +1,8 @@
 #!/bin/bash
 
 ## Prerequisites:
-# Working duplciacy repository located at /Users. In other words, running 
-# "duplicacy backuo" in /Users shall work.
+# Working duplicacy repository located at /Users. In other words, running 
+# "duplicacy backup" in /Users shall work.
 
 
 # Configuration 
@@ -18,7 +18,6 @@ readonly REQUESTED_CLI_VERSION="2.7.0"
 
 # Setup
 readonly REPOSITORY_ROOT='/Users'
-readonly COURTESY_SYMLINK='/usr/local/bin/duplicacy'
 readonly DOWNLOAD_ROOT='https://github.com/gilbertchen/duplicacy/releases/download'
 readonly LOGS_PATH='/Library/Logs/Duplicacy'
 readonly LAUNCHD_BACKUP_NAME='com.duplicacy.backup'
@@ -28,15 +27,31 @@ readonly DUPLICACY_CONFIG_DIR="${REPOSITORY_ROOT}/.duplicacy"
 readonly LAUNCHD_BACKUP_PLIST="/Library/LaunchDaemons/${LAUNCHD_BACKUP_NAME}.plist"
 
 
-function check_utilities()
+function check_utilities_full()
 {
     local error_code=0
-    
     for cmd in wget jq curl
     do
-       if ! command -v $cmd > /dev/null ; then error_code=1; printf "Missing %s\n" "$cmd"; fi
+        if ! command -v $cmd > /dev/null 
+        then  
+            printf "Missing %s\n" "$cmd";
+            error_code=1;
+        fi
     done 
+    return $error_code
+}
 
+function check_utilities_lite()
+{
+    local error_code=0
+    for cmd in wget 
+    do
+        if ! command -v $cmd > /dev/null 
+        then  
+            printf "Missing %s\n" "$cmd";
+            error_code=1;
+        fi
+    done 
     return $error_code
 }
 
@@ -46,32 +61,33 @@ function update_duplicacy_binary()
     
     case "${REQUESTED_CLI_VERSION}" in 
     Stable|stable) 
+        check_utilities_full || return $?
         SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.stable' 2>/dev/null) 
         ;;
     Latest|latest) 
+        check_utilities_full || return $?
         SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.latest' 2>/dev/null) 
         ;;
-    *) if [[ "${REQUESTED_CLI_VERSION}"  =~ ^[0-9.]+$ ]] ; then 
-         SELECTED_VERSION="${REQUESTED_CLI_VERSION}" 
-       else 
-         echo "Unrecognised update channel ${REQUESTED_CLI_VERSION}. Defaulting to Stable"; 
-         SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.stable' 2>/dev/null) 
-       fi 
-       ;;
+    *) 
+        check_utilities_lite || return $?
+        if [[ "${REQUESTED_CLI_VERSION}"  =~ ^[0-9.]+$ ]] ; then 
+            SELECTED_VERSION="${REQUESTED_CLI_VERSION}" 
+        else 
+            echo "Unrecognised update channel ${REQUESTED_CLI_VERSION}. Defaulting to Stable"; 
+            SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.stable' 2>/dev/null) 
+        fi 
+        ;;
     esac
     
     LOCAL_EXECUTABLE_NAME="${DUPLICACY_CONFIG_DIR}/duplicacy_osx_x64_${SELECTED_VERSION}"
 
     if [ -f "${LOCAL_EXECUTABLE_NAME}" ] 
     then
-       echo "Version ${SELECTED_VERSION} is up to date"
+        echo "Version ${SELECTED_VERSION} is up to date"
     else
         DOWNLOAD_URL="${DOWNLOAD_ROOT}/v${SELECTED_VERSION}/duplicacy_osx_x64_${SELECTED_VERSION}"
         if wget -O "${LOCAL_EXECUTABLE_NAME}" "${DOWNLOAD_URL}" ; then 
-            chmod +x "${LOCAL_EXECUTABLE_NAME}"
-            # just for convenience update the duplicacy symlo
-            rm -f "${COURTESY_SYMLINK}"
-            ln -s "${LOCAL_EXECUTABLE_NAME}" "${COURTESY_SYMLINK}"
+            chmod u=rwx,g=rx,o=rx "${LOCAL_EXECUTABLE_NAME}"
             echo "Updated to ${SELECTED_VERSION}"
         else
             echo "Could not download ${DOWNLOAD_URL}"
@@ -129,18 +145,14 @@ BACKUP="${DUPLICACY_CONFIG_DIR}/backup.sh"
 
 echo "Writing out ${BACKUP}"
 
-
 cat > "${BACKUP}" << 'EOF'
 #!/bin/bash
 EOF
 
 cat >> "${BACKUP}" << EOF
-
 CPU_LIMIT_CORE_AC=${CPU_LIMIT_AC}
 CPU_LIMIT_CORE_BATTERY=${CPU_LIMIT_BATTERY}
-
 EOF
-
 
 cat >> "${BACKUP}" << 'EOF'
 case "$(pmset -g batt | grep 'Now drawing from')" in
@@ -149,8 +161,8 @@ case "$(pmset -g batt | grep 'Now drawing from')" in
 esac
 
 function terminator() {
-  kill -TERM "${duplicacy}" 2>/dev/null
-  kill -TERM "${throttler}" 2>/dev/null
+    kill -TERM "${duplicacy}" 2>/dev/null
+    kill -TERM "${throttler}" 2>/dev/null
 }
 
 trap terminator SIGHUP SIGINT SIGQUIT SIGTERM EXIT
@@ -162,7 +174,7 @@ EOF
 
 cat >> "${BACKUP}" << 'EOF'
 duplicacy=$!
-/usr/local/bin/cpulimit --limit=${CPU_LIMIT_CORE} --include-children --pid=${duplicacy}
+/usr/local/bin/cpulimit --limit=${CPU_LIMIT_CORE} --include-children --pid=${duplicacy} &
 throttler=$!
 wait ${throttler}
 EOF
@@ -170,9 +182,6 @@ EOF
 chmod +x "${BACKUP}"|| exit $?
 return 0;
 }
-
-
-check_utilities || exit $?
 
 if [[ $(id -u) != 0 ]]; then
     sudo -p 'Restarting as root, password: ' bash $0 "$@"
