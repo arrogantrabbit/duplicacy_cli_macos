@@ -1,5 +1,10 @@
 #!/bin/bash
 
+## Prerequisites:
+# Working duplciacy repository located at /Users. In other words, running 
+# "duplicacy backuo" in /Users shall work.
+
+
 # Configuration 
 readonly CPU_LIMIT_AC=40
 readonly CPU_LIMIT_BATTERY=10
@@ -9,9 +14,11 @@ readonly CPU_LIMIT_BATTERY=10
 # readonly REQUESTED_CLI_VERSION=Stable
 readonly REQUESTED_CLI_VERSION="2.7.0"
 
+## Should not need to modify anything below this line.
+
 # Setup
 readonly REPOSITORY_ROOT='/Users'
-readonly TARGET_EXECUTABLE='/usr/local/bin/duplicacy'
+readonly COURTESY_SYMLINK='/usr/local/bin/duplicacy'
 readonly DOWNLOAD_ROOT='https://github.com/gilbertchen/duplicacy/releases/download'
 readonly LOGS_PATH='/Library/Logs/Duplicacy'
 readonly LAUNCHD_BACKUP_NAME='com.duplicacy.backup'
@@ -62,8 +69,9 @@ function update_duplicacy_binary()
         DOWNLOAD_URL="${DOWNLOAD_ROOT}/v${SELECTED_VERSION}/duplicacy_osx_x64_${SELECTED_VERSION}"
         if wget -O "${LOCAL_EXECUTABLE_NAME}" "${DOWNLOAD_URL}" ; then 
             chmod +x "${LOCAL_EXECUTABLE_NAME}"
-            rm -f "${TARGET_EXECUTABLE}"
-            ln -s "${LOCAL_EXECUTABLE_NAME}" "${TARGET_EXECUTABLE}"
+            # just for convenience update the duplicacy symlo
+            rm -f "${COURTESY_SYMLINK}"
+            ln -s "${LOCAL_EXECUTABLE_NAME}" "${COURTESY_SYMLINK}"
             echo "Updated to ${SELECTED_VERSION}"
         else
             echo "Could not download ${DOWNLOAD_URL}"
@@ -171,8 +179,14 @@ if [[ $(id -u) != 0 ]]; then
     exit $?
 fi
 
+if [ ! -f "${DUPLICACY_CONFIG_DIR}/preferences" ] ; then 
+    echo "Please initialize duplicacy repository at ${REPOSITORY_ROOT} first."
+    exit 2; 
+fi 
+
 
 echo "Stopping and unloading existing daemon"
+launchctl stop "${LAUNCHD_BACKUP_NAME}" 2>/dev/null
 launchctl unload "${LAUNCHD_BACKUP_PLIST}" 2>/dev/null
 
 update_duplicacy_binary || exit $?
