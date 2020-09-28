@@ -199,10 +199,9 @@ launchctl stop "${LAUNCHD_BACKUP_NAME}" 2>/dev/null
 launchctl unload "${LAUNCHD_BACKUP_PLIST}" 2>/dev/null
 
 update_duplicacy_binary || exit $?
-
+prepare_duplicacy_scripting || exit $?
 prepare_launchd_backup_plist || exit $?
 
-prepare_duplicacy_scripting || exit $?
 
 echo Loading the daemon "${LAUNCHD_BACKUP_NAME}"
 launchctl load -w "${LAUNCHD_BACKUP_PLIST}" || exit $?
