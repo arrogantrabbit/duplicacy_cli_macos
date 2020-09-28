@@ -117,7 +117,7 @@ return 0
 function prepare_duplicacy_scripting()
 {
 
-BACKUP="${DUPLICACY_CONFIG_DIR}/BACKUP.sh"
+BACKUP="${DUPLICACY_CONFIG_DIR}/backup.sh"
 
 echo "Writing out ${BACKUP}"
 
@@ -135,7 +135,6 @@ EOF
 
 
 cat >> "${BACKUP}" << 'EOF'
-
 case "$(pmset -g batt | grep 'Now drawing from')" in
 *Battery*) CPU_LIMIT_CORE=${CPU_LIMIT_CORE_BATTERY} ;;
 *)         CPU_LIMIT_CORE=${CPU_LIMIT_CORE_AC} ;;
@@ -147,10 +146,17 @@ function terminator() {
 }
 
 trap terminator SIGHUP SIGINT SIGQUIT SIGTERM EXIT
-/usr/local/bin/duplicacy backup & duplicacy=$!
-/usr/local/bin/cpulimit --limit=${CPU_LIMIT_CORE} --include-children --pid=${duplicacy} & throttler=$!
-wait ${throttler}
+EOF
 
+cat >> "${BACKUP}" << EOF
+"${LOCAL_EXECUTABLE_NAME}" backup &
+EOF
+
+cat >> "${BACKUP}" << 'EOF'
+duplicacy=$!
+/usr/local/bin/cpulimit --limit=${CPU_LIMIT_CORE} --include-children --pid=${duplicacy}
+throttler=$!
+wait ${throttler}
 EOF
 
 chmod +x "${BACKUP}"|| exit $?
