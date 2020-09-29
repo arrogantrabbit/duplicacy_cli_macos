@@ -14,6 +14,14 @@ readonly CPU_LIMIT_BATTERY=10
 # readonly REQUESTED_CLI_VERSION=Stable
 readonly REQUESTED_CLI_VERSION="2.7.0"
 
+readonly LAUNCHD_BACKUP_SCHEDULE='
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+'
+
 ## Should not need to modify anything below this line.
 
 # Setup
@@ -125,17 +133,13 @@ cat > "${LAUNCHD_BACKUP_PLIST}" << EOF
     <key>Program</key>
     <string>${DUPLICACY_CONFIG_DIR}/backup.sh</string>
 
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
+    ${LAUNCHD_BACKUP_SCHEDULE}
+    
 </dict>
 </plist>
 EOF
 
 return 0
-
 }
 
 function prepare_duplicacy_scripting()
@@ -192,7 +196,6 @@ if [ ! -f "${DUPLICACY_CONFIG_DIR}/preferences" ] ; then
     echo "Please initialize duplicacy repository at ${REPOSITORY_ROOT} first."
     exit 2; 
 fi 
-
 
 echo "Stopping and unloading existing daemon"
 launchctl stop "${LAUNCHD_BACKUP_NAME}" 2>/dev/null
