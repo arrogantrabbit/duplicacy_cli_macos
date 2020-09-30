@@ -126,6 +126,9 @@ function prepare_launchd_backup_plist()
 	    <key>StandardErrorPath</key>
 	    <string>${LOGS_PATH}/${LAUNCHD_BACKUP_NAME}.err.log</string>
 
+        <key>KeepAlive</key>
+        <false/>
+
 	    <key>Label</key>
 	    <string>${LAUNCHD_BACKUP_NAME}</string>
 
@@ -151,7 +154,7 @@ function prepare_duplicacy_scripting()
 	echo "Writing out ${BACKUP}"
 
 
-	cat >> "${BACKUP}" <<- EOF
+	cat > "${BACKUP}" <<- EOF
 	#!/bin/bash
 	CPU_LIMIT_CORE_AC=${CPU_LIMIT_AC}
 	CPU_LIMIT_CORE_BATTERY=${CPU_LIMIT_BATTERY}
@@ -165,8 +168,8 @@ function prepare_duplicacy_scripting()
 	esac
 
 	function terminator() {
-	    kill -TERM "${duplicacy}" 2>/dev/null
-	    kill -TERM "${throttler}" 2>/dev/null
+	    kill -TERM "${duplicacy}" 
+	    kill -TERM "${throttler}" 
 	}
 
 	trap terminator SIGHUP SIGINT SIGQUIT SIGTERM EXIT
