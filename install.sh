@@ -162,10 +162,6 @@ function prepare_duplicacy_scripting()
 	EOF
 
 	cat >> "${BACKUP}" <<- 'EOF'
-	case "$(pmset -g batt | grep 'Now drawing from')" in
-	*Battery*) CPU_LIMIT_CORE=${CPU_LIMIT_CORE_BATTERY} ;;
-	*)		   CPU_LIMIT_CORE=${CPU_LIMIT_CORE_AC} ;;
-	esac
 
 	function terminator() {
 	    kill -TERM "${duplicacy}" 
@@ -174,12 +170,18 @@ function prepare_duplicacy_scripting()
 
 	trap terminator SIGHUP SIGINT SIGQUIT SIGTERM EXIT
 
+	case "$(pmset -g batt | grep 'Now drawing from')" in
+	*Battery*) CPU_LIMIT_CORE=${CPU_LIMIT_CORE_BATTERY} ;;
+	*)		   CPU_LIMIT_CORE=${CPU_LIMIT_CORE_AC} ;;
+	esac
+
 	"${DUPLICASY_CLI_PATH}" backup &
 	duplicacy=$!
+
 	/usr/local/bin/cpulimit --limit=${CPU_LIMIT_CORE} --include-children --pid=${duplicacy} &
 	throttler=$!
 
-	wait ${throttler}
+	wait ${duplicacy}
 
 	EOF
 
