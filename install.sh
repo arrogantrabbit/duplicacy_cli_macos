@@ -5,15 +5,24 @@
 # "duplicacy backup" in /Users shall work.
 
 
-# Configuration 
+## Configuration
+ 
+# CPU limit when on AC power
 readonly CPU_LIMIT_AC=40
+
+# CPU limit when on Battery power
 readonly CPU_LIMIT_BATTERY=10
 
-## Acceptable values are Latest, Stable, or specific version
+# AC/Battery check interval in sectons
+readonly CHECK_BATTERY_POWER_EVERY=60
+
+# Duplicacy version
+# Acceptable values are Latest, Stable, or specific version
 # readonly REQUESTED_CLI_VERSION=Latest
 # readonly REQUESTED_CLI_VERSION=Stable
 readonly REQUESTED_CLI_VERSION="2.7.0"
 
+# launchd schedule to run backup task. see man launchd.plist for configuration help 
 readonly LAUNCHD_BACKUP_SCHEDULE='
 	<key>StartCalendarInterval</key>
 	<dict>
@@ -164,36 +173,63 @@ function prepare_duplicacy_scripting()
 	DUPLICASY_CLI_PATH="${LOCAL_EXECUTABLE_NAME}"
 	GLOBAL_OPTIONS="${DUPLICACY_GLOBAL_OPTIONS}"
 	BACKUP_OPTIONS="${DUPLICACY_BACKUP_OPTIONS}"
+	BATTERY_CHECK_INTERVAL="${CHECK_BATTERY_POWER_EVERY}"
 	EOF
 
 	cat >> "${BACKUP}" <<- 'EOF'
 
 	function terminator() {
-	    kill -TERM "${duplicacy}" 
-	    kill -TERM "${throttler}" 
+	    [ ! -z "$duplicacy" ] && kill -TERM "${duplicacy}" 
+	    duplicacy=
+	    [ ! -z "$monitor" ] && kill -TERM "${monitor}"
+	    monitor=
 	}
 
 	trap terminator SIGHUP SIGINT SIGQUIT SIGTERM EXIT
 
+    function calculate_target_cpulimit(){
+        local cpulimit=${CPU_LIMIT_CORE_BATTERY};
+        case "$(pmset -g batt | grep 'Now drawing from')" in
+	        *Battery*) cpulimit=${CPU_LIMIT_CORE_BATTERY} ;;
+	        *)		   cpulimit=${CPU_LIMIT_CORE_AC} ;;
+	    esac
+	    echo $cpulimit
+    }
 
-	case "$(pmset -g batt | grep 'Now drawing from')" in
-	*Battery*) CPU_LIMIT_CORE=${CPU_LIMIT_CORE_BATTERY} ;;
-	*)		   CPU_LIMIT_CORE=${CPU_LIMIT_CORE_AC} ;;
-	esac
-
-	"${DUPLICASY_CLI_PATH}" "${GLOBAL_OPTIONS}" backup "${BACKUP_OPTIONS}" &
+	"${DUPLICASY_CLI_PATH}" ${GLOBAL_OPTIONS} backup ${BACKUP_OPTIONS} &
 	duplicacy=$!
+    
+    function monitor_and_adjust_priority()
+    {
+        while [ ! -z "$(ps -p $duplicacy -o pid=)" ] ; do 
+            local new_limit=$(calculate_target_cpulimit)
+            if [[ "$last_limit" != "$new_limit" ]] ; then
+                echo Setting new cpu limit $new_limit
+                
+                /usr/local/bin/cpulimit --limit=${new_limit} --include-children --pid=${duplicacy} &
+                
+                new_throttler=$!
+                [ ! -z "$throttler" ] && kill -TERM ${throttler}
+                throttler=${new_throttler}
+                last_limit=$new_limit
+            fi
+            sleep "${BATTERY_CHECK_INTERVAL}" 
+        done
+    }
 
-	/usr/local/bin/cpulimit --limit=${CPU_LIMIT_CORE} --include-children --pid=${duplicacy} &
-	throttler=$!
+    monitor_and_adjust_priority &
+    monitor=$!
 
 	wait ${duplicacy}
+	duplicacy=
 
 	EOF
 
     chmod +x "${BACKUP}"|| exit $?
     return 0;
 }
+
+
 
 if [[ $(id -u) != 0 ]]; then
 	sudo -p 'Restarting as root, password: ' bash $0 "$@"
