@@ -22,6 +22,9 @@ readonly LAUNCHD_BACKUP_SCHEDULE='
 	</dict>
 '
 
+readonly DUPLICACY_GLOBAL_OPTIONS=
+readonly DUPLICACY_BACKUP_OPTIONS=
+
 ## Should not need to modify anything below this line.
 
 # Setup
@@ -159,6 +162,8 @@ function prepare_duplicacy_scripting()
 	CPU_LIMIT_CORE_AC=${CPU_LIMIT_AC}
 	CPU_LIMIT_CORE_BATTERY=${CPU_LIMIT_BATTERY}
 	DUPLICASY_CLI_PATH="${LOCAL_EXECUTABLE_NAME}"
+	GLOBAL_OPTIONS="${DUPLICACY_GLOBAL_OPTIONS}"
+	BACKUP_OPTIONS="${DUPLICACY_BACKUP_OPTIONS}"
 	EOF
 
 	cat >> "${BACKUP}" <<- 'EOF'
@@ -170,12 +175,13 @@ function prepare_duplicacy_scripting()
 
 	trap terminator SIGHUP SIGINT SIGQUIT SIGTERM EXIT
 
+
 	case "$(pmset -g batt | grep 'Now drawing from')" in
 	*Battery*) CPU_LIMIT_CORE=${CPU_LIMIT_CORE_BATTERY} ;;
 	*)		   CPU_LIMIT_CORE=${CPU_LIMIT_CORE_AC} ;;
 	esac
 
-	"${DUPLICASY_CLI_PATH}" backup &
+	"${DUPLICASY_CLI_PATH}" "${GLOBAL_OPTIONS}" backup "${BACKUP_OPTIONS}" &
 	duplicacy=$!
 
 	/usr/local/bin/cpulimit --limit=${CPU_LIMIT_CORE} --include-children --pid=${duplicacy} &
