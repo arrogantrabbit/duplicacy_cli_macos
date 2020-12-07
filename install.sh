@@ -2,7 +2,7 @@
 
 ## Prerequisites:
 # Working duplicacy repository located at /Users. In other words, running 
-# "duplicacy backup" in /Users shall work.
+# "cd /Users && duplicacy backup" shall work.
 
 
 ## Configuration
@@ -14,13 +14,15 @@ readonly CPU_LIMIT_AC=40
 readonly CPU_LIMIT_BATTERY=10
 
 # AC/Battery check interval in sectons
-readonly CHECK_BATTERY_POWER_EVERY=60
+readonly CHECK_POWER_SOURCE_EVERY=60
 
 # Duplicacy version
-# Acceptable values are Latest, Stable, or specific version
+# Acceptable values are Latest, Stable, Custom, or specific version
+# readonly REQUESTED_CLI_VERSION="2.7.2"
 # readonly REQUESTED_CLI_VERSION=Latest
 # readonly REQUESTED_CLI_VERSION=Stable
-readonly REQUESTED_CLI_VERSION="2.7.0"
+readonly REQUESTED_CLI_VERSION=Custom
+readonly DUPLICACY_CUSTOM_BINARY=/Users/.duplicacy/duplicacy_osx_custom
 
 # launchd schedule to run backup task. see man launchd.plist for configuration help 
 readonly LAUNCHD_BACKUP_SCHEDULE='
@@ -32,8 +34,10 @@ readonly LAUNCHD_BACKUP_SCHEDULE='
 '
 
 readonly DUPLICACY_GLOBAL_OPTIONS=
-readonly DUPLICACY_BACKUP_OPTIONS=
+readonly DUPLICACY_BACKUP_OPTIONS="-vss -threads 4"
 
+
+## ---------------------------------------------------
 ## Should not need to modify anything below this line.
 
 # Setup
@@ -48,31 +52,20 @@ readonly LAUNCHD_BACKUP_PLIST="/Library/LaunchDaemons/${LAUNCHD_BACKUP_NAME}.pli
 
 ## Helpers
 # Verify that utilities required are available
-function check_utilities_full()
+#
+function check_utilities()
 {
 	local error_code=0
-	for cmd in wget jq curl
+	for cmd in $@
 	do
-		if ! command -v $cmd > /dev/null 
-		then  
-			printf "Missing %s\n" "$cmd";
-			error_code=1;
+		if ! command -v $cmd > /dev/null
+		then
+				printf "%12s Missing\n" "$cmd"
+				error_code=1;
+		else
+			printf "%12s OK\n" "$cmd"
 		fi
-	done 
-	return $error_code
-}
-
-function check_utilities_lite()
-{
-	local error_code=0
-	for cmd in wget 
-	do
-		if ! command -v $cmd > /dev/null 
-		then  
-			printf "Missing %s\n" "$cmd";
-			error_code=1;
-		fi
-	done 
+	done
 	return $error_code
 }
 
@@ -82,17 +75,21 @@ function update_duplicacy_binary()
 {
 	mkdir -p "${DUPLICACY_CONFIG_DIR}"
 	
+	# Determine required version
 	case "${REQUESTED_CLI_VERSION}" in 
 	Stable|stable) 
-		check_utilities_full || return $?
+		check_utilities cpulimit wget jq curl || return $?
 		SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.stable' 2>/dev/null) 
 		;;
 	Latest|latest) 
-		check_utilities_full || return $?
+		check_utilities cpulimit wget jq curl || return $?
 		SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.latest' 2>/dev/null) 
 		;;
+	Custom|custom) 
+		check_utilities cpulimit || return $?
+		;;
 	*) 
-		check_utilities_lite || return $?
+		check_utilities cpulimit wget || return $?
 		if [[ "${REQUESTED_CLI_VERSION}"  =~ ^[0-9.]+$ ]] ; then 
 			SELECTED_VERSION="${REQUESTED_CLI_VERSION}" 
 		else 
@@ -101,23 +98,38 @@ function update_duplicacy_binary()
 		fi 
 		;;
 	esac
-	
-	LOCAL_EXECUTABLE_NAME="${DUPLICACY_CONFIG_DIR}/duplicacy_osx_x64_${SELECTED_VERSION}"
 
-	if [ -f "${LOCAL_EXECUTABLE_NAME}" ] 
-	then
-		echo "Version ${SELECTED_VERSION} is up to date"
-	else
-		DOWNLOAD_URL="${DOWNLOAD_ROOT}/v${SELECTED_VERSION}/duplicacy_osx_x64_${SELECTED_VERSION}"
-		if wget -O "${LOCAL_EXECUTABLE_NAME}" "${DOWNLOAD_URL}" ; then 
-			chmod u=rwx,g=rx,o=rx "${LOCAL_EXECUTABLE_NAME}"
-			echo "Updated to ${SELECTED_VERSION}"
+	case "${REQUESTED_CLI_VERSION}" in 
+	Custom|custom) 
+		LOCAL_EXECUTABLE_PATH="${DUPLICACY_CUSTOM_BINARY}"
+		if [ -f "${LOCAL_EXECUTABLE_PATH}" ] 
+		then
+			echo "Custom binary ${LOCAL_EXECUTABLE_PATH} exists"
 		else
-			echo "Could not download ${DOWNLOAD_URL}"
-			rm -f "${LOCAL_EXECUTABLE_NAME}"
-		return 1
+			echo "Duplicacy custom binary ${LOCAL_EXECUTABLE_PATH} does not exist"
+			return 1
 		fi
-	fi 
+		;;
+	*)
+		LOCAL_EXECUTABLE_PATH="${DUPLICACY_CONFIG_DIR}/duplicacy_osx_x64_${SELECTED_VERSION}"
+		if [ -f "${LOCAL_EXECUTABLE_PATH}" ] 
+		then
+			echo "Version ${SELECTED_VERSION} is up to date"
+		else
+			DOWNLOAD_URL="${DOWNLOAD_ROOT}/v${SELECTED_VERSION}/duplicacy_osx_x64_${SELECTED_VERSION}"
+			if wget -O "${LOCAL_EXECUTABLE_PATH}" "${DOWNLOAD_URL}" ; then 
+				chmod u=rwx,g=rx,o=rx "${LOCAL_EXECUTABLE_PATH}"
+				echo "Updated to ${SELECTED_VERSION}"
+			else
+				echo "Could not download ${DOWNLOAD_URL}"
+				rm -f "${LOCAL_EXECUTABLE_PATH}"
+				return 1
+			fi
+		fi 	
+		;;
+	esac
+
+
 	return 0
 }
 
@@ -134,22 +146,22 @@ function prepare_launchd_backup_plist()
 	<dict>
 	    <key>StandardOutPath</key>
 	    <string>${LOGS_PATH}/${LAUNCHD_BACKUP_NAME}.out.log</string>
-
+	
 	    <key>StandardErrorPath</key>
 	    <string>${LOGS_PATH}/${LAUNCHD_BACKUP_NAME}.err.log</string>
-
-        <key>KeepAlive</key>
-        <false/>
-
+	
+	    <key>KeepAlive</key>
+	    <false/>
+	
 	    <key>Label</key>
 	    <string>${LAUNCHD_BACKUP_NAME}</string>
-
+	
 	    <key>WorkingDirectory</key>
 	    <string>${REPOSITORY_ROOT}</string>
-
+	
 	    <key>Program</key>
 	    <string>${DUPLICACY_CONFIG_DIR}/backup.sh</string>
-
+	
 	    ${LAUNCHD_BACKUP_SCHEDULE}
 	
 	</dict>
@@ -165,68 +177,75 @@ function prepare_duplicacy_scripting()
 	BACKUP="${DUPLICACY_CONFIG_DIR}/backup.sh"
 	echo "Writing out ${BACKUP}"
 
+	LOCAL_CPU_LIMITER_PATH="$(which cpulimit)"
 
 	cat > "${BACKUP}" <<- EOF
 	#!/bin/bash
 	CPU_LIMIT_CORE_AC=${CPU_LIMIT_AC}
 	CPU_LIMIT_CORE_BATTERY=${CPU_LIMIT_BATTERY}
-	DUPLICASY_CLI_PATH="${LOCAL_EXECUTABLE_NAME}"
+	CPU_LIMITER_PATH="${LOCAL_CPU_LIMITER_PATH}"
+	DUPLICASY_CLI_PATH="${LOCAL_EXECUTABLE_PATH}"
 	GLOBAL_OPTIONS="${DUPLICACY_GLOBAL_OPTIONS}"
 	BACKUP_OPTIONS="${DUPLICACY_BACKUP_OPTIONS}"
-	BATTERY_CHECK_INTERVAL="${CHECK_BATTERY_POWER_EVERY}"
+	BATTERY_CHECK_INTERVAL="${CHECK_POWER_SOURCE_EVERY}"
+	LOGS_PATH="${LOGS_PATH}"
 	EOF
 
 	cat >> "${BACKUP}" <<- 'EOF'
-
+	
 	function terminator() {
 	    [ ! -z "$duplicacy" ] && kill -TERM "${duplicacy}" 
 	    duplicacy=
 	    [ ! -z "$monitor" ] && kill -TERM "${monitor}"
 	    monitor=
 	}
-
+	
 	trap terminator SIGHUP SIGINT SIGQUIT SIGTERM EXIT
-
-    function calculate_target_cpulimit(){
-        local cpulimit=${CPU_LIMIT_CORE_BATTERY};
-        case "$(pmset -g batt | grep 'Now drawing from')" in
+	
+	function calculate_target_cpulimit(){
+	    local cpulimit=${CPU_LIMIT_CORE_BATTERY};
+	    case "$(pmset -g batt | grep 'Now drawing from')" in
 	        *Battery*) cpulimit=${CPU_LIMIT_CORE_BATTERY} ;;
 	        *)		   cpulimit=${CPU_LIMIT_CORE_AC} ;;
 	    esac
 	    echo $cpulimit
-    }
+	}
+	
+	function monitor_and_adjust_priority()
+	{
+	    while [ ! -z "$(ps -p $duplicacy -o pid=)" ] ; do 
+	        local new_limit=$(calculate_target_cpulimit)
+	        if [[ "$last_limit" != "$new_limit" ]] ; then
+	            echo Setting new cpu limit $new_limit
+	            
+	            "${CPU_LIMITER_PATH}" --limit=${new_limit} --include-children --pid=${duplicacy} &
+	            
+	            new_throttler=$!
+	            [ ! -z "$throttler" ] && kill -TERM ${throttler}
+	            throttler=${new_throttler}
+	            last_limit=$new_limit
+	        fi
+	        sleep "${BATTERY_CHECK_INTERVAL}" 
+	    done
+	}
 
-	"${DUPLICASY_CLI_PATH}" ${GLOBAL_OPTIONS} backup ${BACKUP_OPTIONS} &
-	duplicacy=$!
-    
-    function monitor_and_adjust_priority()
-    {
-        while [ ! -z "$(ps -p $duplicacy -o pid=)" ] ; do 
-            local new_limit=$(calculate_target_cpulimit)
-            if [[ "$last_limit" != "$new_limit" ]] ; then
-                echo Setting new cpu limit $new_limit
-                
-                /usr/local/bin/cpulimit --limit=${new_limit} --include-children --pid=${duplicacy} &
-                
-                new_throttler=$!
-                [ ! -z "$throttler" ] && kill -TERM ${throttler}
-                throttler=${new_throttler}
-                last_limit=$new_limit
-            fi
-            sleep "${BATTERY_CHECK_INTERVAL}" 
-        done
-    }
 
-    monitor_and_adjust_priority &
-    monitor=$!
-
-	wait ${duplicacy}
-	duplicacy=
-
+	LOGFILE="${LOGS_PATH}/backup-$(date '+%Y-%m-%d-%H-%M-%S')"
+	{
+	    "${DUPLICASY_CLI_PATH}" ${GLOBAL_OPTIONS} backup ${BACKUP_OPTIONS} &
+	    duplicacy=$!
+	
+	    monitor_and_adjust_priority &
+	    monitor=$!
+	
+	    wait ${duplicacy}
+	    duplicacy=
+	} > "${LOGFILE}.log" 2> "${LOGFILE}.err"
+	
 	EOF
 
-    chmod +x "${BACKUP}"|| exit $?
-    return 0;
+	chmod +x "${BACKUP}"|| exit $?
+	return 0;
 }
 
 
