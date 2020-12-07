@@ -101,28 +101,28 @@ function update_duplicacy_binary()
 
 	case "${REQUESTED_CLI_VERSION}" in 
 	Custom|custom) 
-		LOCAL_EXECUTABLE_PATH="${DUPLICACY_CUSTOM_BINARY}"
-		if [ -f "${LOCAL_EXECUTABLE_PATH}" ] 
+		DUPLICACY_CLI_PATH="${DUPLICACY_CUSTOM_BINARY}"
+		if [ -f "${DUPLICACY_CLI_PATH}" ] 
 		then
-			echo "Custom binary ${LOCAL_EXECUTABLE_PATH} exists"
+			echo "Custom binary ${DUPLICACY_CLI_PATH} exists"
 		else
-			echo "Duplicacy custom binary ${LOCAL_EXECUTABLE_PATH} does not exist"
+			echo "Duplicacy custom binary ${DUPLICACY_CLI_PATH} does not exist"
 			return 1
 		fi
 		;;
 	*)
-		LOCAL_EXECUTABLE_PATH="${DUPLICACY_CONFIG_DIR}/duplicacy_osx_x64_${SELECTED_VERSION}"
-		if [ -f "${LOCAL_EXECUTABLE_PATH}" ] 
+		DUPLICACY_CLI_PATH="${DUPLICACY_CONFIG_DIR}/duplicacy_osx_x64_${SELECTED_VERSION}"
+		if [ -f "${DUPLICACY_CLI_PATH}" ] 
 		then
 			echo "Version ${SELECTED_VERSION} is up to date"
 		else
 			DOWNLOAD_URL="${DOWNLOAD_ROOT}/v${SELECTED_VERSION}/duplicacy_osx_x64_${SELECTED_VERSION}"
-			if wget -O "${LOCAL_EXECUTABLE_PATH}" "${DOWNLOAD_URL}" ; then 
-				chmod u=rwx,g=rx,o=rx "${LOCAL_EXECUTABLE_PATH}"
+			if wget -O "${DUPLICACY_CLI_PATH}" "${DOWNLOAD_URL}" ; then 
+				chmod u=rwx,g=rx,o=rx "${DUPLICACY_CLI_PATH}"
 				echo "Updated to ${SELECTED_VERSION}"
 			else
 				echo "Could not download ${DOWNLOAD_URL}"
-				rm -f "${LOCAL_EXECUTABLE_PATH}"
+				rm -f "${DUPLICACY_CLI_PATH}"
 				return 1
 			fi
 		fi 	
@@ -144,20 +144,11 @@ function prepare_launchd_backup_plist()
 	<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 	<plist version="1.0">
 	<dict>
-	    <key>StandardOutPath</key>
-	    <string>${LOGS_PATH}/${LAUNCHD_BACKUP_NAME}.out.log</string>
-	
-	    <key>StandardErrorPath</key>
-	    <string>${LOGS_PATH}/${LAUNCHD_BACKUP_NAME}.err.log</string>
-	
 	    <key>KeepAlive</key>
 	    <false/>
 	
 	    <key>Label</key>
 	    <string>${LAUNCHD_BACKUP_NAME}</string>
-	
-	    <key>WorkingDirectory</key>
-	    <string>${REPOSITORY_ROOT}</string>
 	
 	    <key>Program</key>
 	    <string>${DUPLICACY_CONFIG_DIR}/backup.sh</string>
@@ -177,18 +168,19 @@ function prepare_duplicacy_scripting()
 	BACKUP="${DUPLICACY_CONFIG_DIR}/backup.sh"
 	echo "Writing out ${BACKUP}"
 
-	LOCAL_CPU_LIMITER_PATH="$(which cpulimit)"
+	CPU_LIMITER_PATH="$(which cpulimit)"
 
 	cat > "${BACKUP}" <<- EOF
 	#!/bin/bash
-	CPU_LIMIT_CORE_AC=${CPU_LIMIT_AC}
-	CPU_LIMIT_CORE_BATTERY=${CPU_LIMIT_BATTERY}
-	CPU_LIMITER_PATH="${LOCAL_CPU_LIMITER_PATH}"
-	DUPLICASY_CLI_PATH="${LOCAL_EXECUTABLE_PATH}"
-	GLOBAL_OPTIONS="${DUPLICACY_GLOBAL_OPTIONS}"
-	BACKUP_OPTIONS="${DUPLICACY_BACKUP_OPTIONS}"
-	BATTERY_CHECK_INTERVAL="${CHECK_POWER_SOURCE_EVERY}"
+	CPU_LIMIT_AC=${CPU_LIMIT_AC}
+	CPU_LIMIT_BATTERY=${CPU_LIMIT_BATTERY}
+	CPU_LIMITER_PATH="${CPU_LIMITER_PATH}"
+	DUPLICASY_CLI_PATH="${DUPLICACY_CLI_PATH}"
+	DUPLICACY_GLOBAL_OPTIONS="${DUPLICACY_GLOBAL_OPTIONS}"
+	DUPLICACY_BACKUP_OPTIONS="${DUPLICACY_BACKUP_OPTIONS}"
+	CHECK_POWER_SOURCE_EVERY="${CHECK_POWER_SOURCE_EVERY}"
 	LOGS_PATH="${LOGS_PATH}"
+	REPOSITORY_ROOT="${REPOSITORY_ROOT}"
 	EOF
 
 	cat >> "${BACKUP}" <<- 'EOF'
@@ -203,10 +195,10 @@ function prepare_duplicacy_scripting()
 	trap terminator SIGHUP SIGINT SIGQUIT SIGTERM EXIT
 	
 	function calculate_target_cpulimit(){
-	    local cpulimit=${CPU_LIMIT_CORE_BATTERY};
+	    local cpulimit=${CPU_LIMIT_BATTERY};
 	    case "$(pmset -g batt | grep 'Now drawing from')" in
-	        *Battery*) cpulimit=${CPU_LIMIT_CORE_BATTERY} ;;
-	        *)		   cpulimit=${CPU_LIMIT_CORE_AC} ;;
+	        *Battery*) cpulimit=${CPU_LIMIT_BATTERY} ;;
+	        *)		   cpulimit=${CPU_LIMIT_AC} ;;
 	    esac
 	    echo $cpulimit
 	}
@@ -225,14 +217,15 @@ function prepare_duplicacy_scripting()
 	            throttler=${new_throttler}
 	            last_limit=$new_limit
 	        fi
-	        sleep "${BATTERY_CHECK_INTERVAL}" 
+	        sleep "${CHECK_POWER_SOURCE_EVERY}" 
 	    done
 	}
 
 
 	LOGFILE="${LOGS_PATH}/backup-$(date '+%Y-%m-%d-%H-%M-%S')"
 	{
-	    "${DUPLICASY_CLI_PATH}" ${GLOBAL_OPTIONS} backup ${BACKUP_OPTIONS} &
+	    cd "${REPOSITORY_ROOT}"
+	    "${DUPLICASY_CLI_PATH}" ${DUPLICACY_GLOBAL_OPTIONS} backup ${DUPLICACY_BACKUP_OPTIONS} &
 	    duplicacy=$!
 	
 	    monitor_and_adjust_priority &
