@@ -36,6 +36,19 @@ readonly LAUNCHD_BACKUP_SCHEDULE='
 readonly DUPLICACY_GLOBAL_OPTIONS=
 readonly DUPLICACY_BACKUP_OPTIONS="-vss -threads 4"
 
+# Retention
+# After two weeks keep a version every day
+# After 90 days keep a version every week
+# After one year keep a version every month
+readonly DUPLICACY_PRUNE_OPTIONS=" -keep 31:360 -keep 7:90 -keep 1:14 -all"
+
+readonly LAUNCHD_PRUNE_SCHEDULE='
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>WeekDay</key>
+		<integer>0</integer>
+	</dict>
+'
 
 ## ---------------------------------------------------
 ## Should not need to modify anything below this line.
@@ -45,10 +58,12 @@ readonly REPOSITORY_ROOT='/Users'
 readonly DOWNLOAD_ROOT='https://github.com/gilbertchen/duplicacy/releases/download'
 readonly LOGS_PATH='/Library/Logs/Duplicacy'
 readonly LAUNCHD_BACKUP_NAME='com.duplicacy.backup'
+readonly LAUNCHD_PRUNE_NAME='com.duplicacy.prune'
 
 # Derivatives
 readonly DUPLICACY_CONFIG_DIR="${REPOSITORY_ROOT}/.duplicacy"
 readonly LAUNCHD_BACKUP_PLIST="/Library/LaunchDaemons/${LAUNCHD_BACKUP_NAME}.plist"
+readonly LAUNCHD_PRUNE_PLIST="/Library/LaunchDaemons/${LAUNCHD_PRUNE_NAME}.plist"
 
 ## Helpers
 # Verify that utilities required are available
@@ -160,11 +175,76 @@ function prepare_launchd_backup_plist()
 	EOF
 	return 0
 }
+
+function prepare_launchd_prune_plist()
+{
+	echo "Writing out ${LAUNCHD_PRUNE_PLIST}"
+	mkdir -p ${LOGS_PATH}
+
+	cat > "${LAUNCHD_PRUNE_PLIST}" <<- EOF
+	<?xml version="1.0" encoding="UTF-8"?>
+	<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+	<plist version="1.0">
+	<dict>
+	    <key>KeepAlive</key>
+	    <false/>
+	
+	    <key>Label</key>
+	    <string>${LAUNCHD_PRUNE_NAME}</string>
+	
+	    <key>Program</key>
+	    <string>${DUPLICACY_CONFIG_DIR}/prune.sh</string>
+	
+	    ${LAUNCHD_PRUNE_SCHEDULE}
+	
+	</dict>
+	</plist>
+	EOF
+	return 0
+}
  
 ## Write out throttler scripts
 #
 function prepare_duplicacy_scripting()
 {
+	# Prune
+	PRUNE="${DUPLICACY_CONFIG_DIR}/prune.sh"
+	echo "Writing out ${PRUNE}"
+
+	cat > "${PRUNE}" <<- EOF
+	#!/bin/bash
+	DUPLICASY_CLI_PATH="${DUPLICACY_CLI_PATH}"
+	DUPLICACY_GLOBAL_OPTIONS="${DUPLICACY_GLOBAL_OPTIONS}"
+	DUPLICACY_PRUNE_OPTIONS="${DUPLICACY_PRUNE_OPTIONS}"
+	LOGS_PATH="${LOGS_PATH}"
+	REPOSITORY_ROOT="${REPOSITORY_ROOT}"
+	EOF
+
+	cat >> "${PRUNE}" <<- 'EOF'
+	
+	function terminator() {
+	    [ ! -z "$duplicacy" ] && kill -TERM "${duplicacy}" 
+	    duplicacy=
+	}
+	
+	trap terminator SIGHUP SIGINT SIGQUIT SIGTERM EXIT
+	
+	LOGFILE="${LOGS_PATH}/prune-$(date '+%Y-%m-%d-%H-%M-%S')"
+	{
+	    cd "${REPOSITORY_ROOT}"
+	    "${DUPLICASY_CLI_PATH}" ${DUPLICACY_GLOBAL_OPTIONS} prune ${DUPLICACY_PRUNE_OPTIONS} &
+	    duplicacy=$!
+	
+	    wait ${duplicacy}
+	    duplicacy=
+	} > "${LOGFILE}.log" 2> "${LOGFILE}.err"
+	
+	EOF
+
+	chmod +x "${PRUNE}"|| exit $?
+
+
+	# Throttled Backup
 	BACKUP="${DUPLICACY_CONFIG_DIR}/backup.sh"
 	echo "Writing out ${BACKUP}"
 
@@ -220,8 +300,7 @@ function prepare_duplicacy_scripting()
 	        sleep "${CHECK_POWER_SOURCE_EVERY}" 
 	    done
 	}
-
-
+	
 	LOGFILE="${LOGS_PATH}/backup-$(date '+%Y-%m-%d-%H-%M-%S')"
 	{
 	    cd "${REPOSITORY_ROOT}"
@@ -242,7 +321,6 @@ function prepare_duplicacy_scripting()
 }
 
 
-
 if [[ $(id -u) != 0 ]]; then
 	sudo -p 'Restarting as root, password: ' bash $0 "$@"
 	exit $?
@@ -253,16 +331,24 @@ if [ ! -f "${DUPLICACY_CONFIG_DIR}/preferences" ] ; then
 	exit 2; 
 fi 
 
-echo "Stopping and unloading existing daemon"
+echo "Stopping and unloading existing daemons"
 launchctl stop "${LAUNCHD_BACKUP_NAME}" 2>/dev/null
 launchctl unload "${LAUNCHD_BACKUP_PLIST}" 2>/dev/null
+
+launchctl stop "${LAUNCHD_PRUNE_NAME}" 2>/dev/null
+launchctl unload "${LAUNCHD_PRUNE_PLIST}" 2>/dev/null
+
 
 update_duplicacy_binary || exit $?
 prepare_duplicacy_scripting || exit $?
 prepare_launchd_backup_plist || exit $?
+prepare_launchd_prune_plist || exit $?
 
 
 echo Loading the daemon "${LAUNCHD_BACKUP_NAME}"
 launchctl load -w "${LAUNCHD_BACKUP_PLIST}" || exit $?
+
+echo Loading the daemon "${LAUNCHD_PRUNE_NAME}"
+launchctl load -w "${LAUNCHD_PRUNE_PLIST}" || exit $?
 
 echo Success.
