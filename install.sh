@@ -25,13 +25,14 @@ readonly REQUESTED_CLI_VERSION=Custom
 readonly DUPLICACY_CUSTOM_BINARY=/Users/.duplicacy/duplicacy_osx_custom
 
 # launchd schedule to run backup task. see man launchd.plist for configuration help 
-readonly LAUNCHD_BACKUP_SCHEDULE='
-	<key>StartCalendarInterval</key>
-	<dict>
-		<key>Minute</key>
-		<integer>0</integer>
-	</dict>
-'
+readonly LAUNCHD_BACKUP_SCHEDULE=$(cat <<- EOF
+	    <key>StartCalendarInterval</key>
+	    <dict>
+	        <key>Minute</key>
+	        <integer>0</integer>
+	    </dict>
+EOF
+)
 
 readonly DUPLICACY_GLOBAL_OPTIONS=
 readonly DUPLICACY_BACKUP_OPTIONS="-vss -threads 4"
@@ -42,17 +43,18 @@ readonly DUPLICACY_BACKUP_OPTIONS="-vss -threads 4"
 # After one year keep a version every month
 readonly DUPLICACY_PRUNE_OPTIONS=" -keep 31:360 -keep 7:90 -keep 1:14 -all"
 
-readonly LAUNCHD_PRUNE_SCHEDULE='
-	<key>StartCalendarInterval</key>
-	<dict>
-		<key>Weekday</key>
-		<integer>0</integer>
-		<key>Hour</key>
-		<integer>0</integer>
-		<key>Minute</key>
-		<integer>0</integer>
-	</dict>
-'
+readonly LAUNCHD_PRUNE_SCHEDULE=$(cat <<- EOF
+	    <key>StartCalendarInterval</key>
+	    <dict>
+	        <key>Weekday</key>
+	        <integer>0</integer>
+	        <key>Hour</key>
+	        <integer>0</integer>
+	        <key>Minute</key>
+	        <integer>0</integer>
+	    </dict>
+EOF
+)
 
 ## ---------------------------------------------------
 ## Should not need to modify anything below this line.
@@ -172,7 +174,7 @@ function prepare_launchd_backup_plist()
 	    <key>Program</key>
 	    <string>${DUPLICACY_CONFIG_DIR}/backup.sh</string>
 	
-	    ${LAUNCHD_BACKUP_SCHEDULE}
+	${LAUNCHD_BACKUP_SCHEDULE}
 	
 	</dict>
 	</plist>
@@ -199,7 +201,7 @@ function prepare_launchd_prune_plist()
 	    <key>Program</key>
 	    <string>${DUPLICACY_CONFIG_DIR}/prune.sh</string>
 	
-	    ${LAUNCHD_PRUNE_SCHEDULE}
+	${LAUNCHD_PRUNE_SCHEDULE}
 	
 	</dict>
 	</plist>
