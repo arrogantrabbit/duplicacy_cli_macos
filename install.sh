@@ -45,7 +45,11 @@ readonly DUPLICACY_PRUNE_OPTIONS=" -keep 31:360 -keep 7:90 -keep 1:14 -all"
 readonly LAUNCHD_PRUNE_SCHEDULE='
 	<key>StartCalendarInterval</key>
 	<dict>
-		<key>WeekDay</key>
+		<key>Weekday</key>
+		<integer>0</integer>
+		<key>Hour</key>
+		<integer>0</integer>
+		<key>Minute</key>
 		<integer>0</integer>
 	</dict>
 '
