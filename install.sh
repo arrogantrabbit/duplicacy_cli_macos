@@ -22,7 +22,7 @@ readonly CHECK_POWER_SOURCE_EVERY=60
 # readonly REQUESTED_CLI_VERSION=Latest
 # readonly REQUESTED_CLI_VERSION=Stable
 readonly REQUESTED_CLI_VERSION=Custom
-readonly DUPLICACY_CUSTOM_BINARY=/Users/.duplicacy/duplicacy_osx_custom
+readonly DUPLICACY_CUSTOM_BINARY=/Library/Duplicacy/duplicacy_osx_custom
 
 # launchd schedule to run backup task. see man launchd.plist for configuration help 
 readonly LAUNCHD_BACKUP_SCHEDULE=$(cat <<- EOF
@@ -60,7 +60,6 @@ EOF
 ## Should not need to modify anything below this line.
 
 # Setup
-readonly REPOSITORY_ROOT='/Users'
 readonly DOWNLOAD_ROOT='https://github.com/gilbertchen/duplicacy/releases/download'
 readonly LOGS_PATH='/Library/Logs/Duplicacy'
 readonly LAUNCHD_BACKUP_NAME='com.duplicacy.backup'
@@ -68,7 +67,7 @@ readonly HELPER_BACKUP_APP_NAME='Duplicacy-Backup.app'
 readonly LAUNCHD_PRUNE_NAME='com.duplicacy.prune'
 
 # Derivatives
-readonly DUPLICACY_CONFIG_DIR="${REPOSITORY_ROOT}/.duplicacy"
+readonly DUPLICACY_CONFIG_ROOT="/Library/Duplicacy"
 readonly LAUNCHD_BACKUP_PLIST="/Library/LaunchDaemons/${LAUNCHD_BACKUP_NAME}.plist"
 readonly LAUNCHD_PRUNE_PLIST="/Library/LaunchDaemons/${LAUNCHD_PRUNE_NAME}.plist"
 
@@ -95,7 +94,7 @@ function check_utilities()
 #
 function update_duplicacy_binary()
 {
-	mkdir -p "${DUPLICACY_CONFIG_DIR}"
+	mkdir -p "${DUPLICACY_CONFIG_ROOT}/.duplicacy"
 	
 	# Determine required version
 	case "${REQUESTED_CLI_VERSION}" in 
@@ -133,7 +132,7 @@ function update_duplicacy_binary()
 		fi
 		;;
 	*)
-		DUPLICACY_CLI_PATH="${DUPLICACY_CONFIG_DIR}/duplicacy_osx_x64_${SELECTED_VERSION}"
+		DUPLICACY_CLI_PATH="${DUPLICACY_CONFIG_ROOT}/duplicacy_osx_x64_${SELECTED_VERSION}"
 		if [ -f "${DUPLICACY_CLI_PATH}" ] 
 		then
 			echo "Version ${SELECTED_VERSION} is up to date"
@@ -200,7 +199,7 @@ function prepare_launchd_prune_plist()
 	    <string>${LAUNCHD_PRUNE_NAME}</string>
 	
 	    <key>Program</key>
-	    <string>${DUPLICACY_CONFIG_DIR}/prune.sh</string>
+	    <string>${DUPLICACY_CONFIG_ROOT}/prune.sh</string>
 	
 	${LAUNCHD_PRUNE_SCHEDULE}
 	
@@ -215,22 +214,22 @@ function prepare_launchd_prune_plist()
 function prepare_duplicacy_scripting()
 {
 	# Prune
-	PRUNE="${DUPLICACY_CONFIG_DIR}/prune.sh"
+	PRUNE="${DUPLICACY_CONFIG_ROOT}/prune.sh"
 	echo "Writing out ${PRUNE}"
 
 	cat > "${PRUNE}" <<- EOF
 	#!/bin/bash
-	DUPLICASY_CLI_PATH="${DUPLICACY_CLI_PATH}"
+	DUPLICACY_CLI_PATH="${DUPLICACY_CLI_PATH}"
 	DUPLICACY_GLOBAL_OPTIONS="${DUPLICACY_GLOBAL_OPTIONS}"
 	DUPLICACY_PRUNE_OPTIONS="${DUPLICACY_PRUNE_OPTIONS}"
 	LOGS_PATH="${LOGS_PATH}"
-	REPOSITORY_ROOT="${REPOSITORY_ROOT}"
+	DUPLICACY_CONFIG_ROOT="${DUPLICACY_CONFIG_ROOT}"
 	EOF
 
 	cat >> "${PRUNE}" <<- 'EOF'
 	
 	SCRIPTPATH="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
-	DUPLICASY_CLI_PATH="${SCRIPTPATH}/${DUPLICACY_NAME}"
+	DUPLICACY_CLI_PATH="${SCRIPTPATH}/${DUPLICACY_NAME}"
 
 	function terminator() {
 	    [ ! -z "$duplicacy" ] && kill -TERM "${duplicacy}" 
@@ -241,8 +240,8 @@ function prepare_duplicacy_scripting()
 	
 	LOGFILE="${LOGS_PATH}/prune-$(date '+%Y-%m-%d-%H-%M-%S')"
 	{
-	    cd "${REPOSITORY_ROOT}"
-	    "${DUPLICASY_CLI_PATH}" ${DUPLICACY_GLOBAL_OPTIONS} prune ${DUPLICACY_PRUNE_OPTIONS} &
+	    cd "${DUPLICACY_CONFIG_ROOT}"
+	    "${DUPLICACY_CLI_PATH}" ${DUPLICACY_GLOBAL_OPTIONS} prune ${DUPLICACY_PRUNE_OPTIONS} &
 	    duplicacy=$!
 	
 	    wait ${duplicacy}
@@ -255,7 +254,7 @@ function prepare_duplicacy_scripting()
 
 
 	# Throttled Backup
-	BACKUP="${DUPLICACY_CONFIG_DIR}/backup.sh"
+	BACKUP="${DUPLICACY_CONFIG_ROOT}/backup.sh"
 	echo "Writing out ${BACKUP}"
 
 	CPU_LIMITER_PATH="$(which cpulimit)"
@@ -270,15 +269,17 @@ function prepare_duplicacy_scripting()
 	DUPLICACY_BACKUP_OPTIONS="${DUPLICACY_BACKUP_OPTIONS}"
 	CHECK_POWER_SOURCE_EVERY="${CHECK_POWER_SOURCE_EVERY}"
 	LOGS_PATH="${LOGS_PATH}"
-	REPOSITORY_ROOT="${REPOSITORY_ROOT}"
+	DUPLICACY_CONFIG_ROOT="${DUPLICACY_CONFIG_ROOT}"
 	EOF
 
 	cat >> "${BACKUP}" <<- 'EOF'
 	
 	SCRIPTPATH="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
-	DUPLICASY_CLI_PATH="${SCRIPTPATH}/${DUPLICACY_NAME}"
+	DUPLICACY_CLI_PATH="${SCRIPTPATH}/${DUPLICACY_NAME}"
 
 	function terminator() {
+			echo termination signal received
+
 	    [ ! -z "$duplicacy" ] && kill -TERM "${duplicacy}" 
 	    duplicacy=
 	    [ ! -z "$monitor" ] && kill -TERM "${monitor}"
@@ -316,9 +317,9 @@ function prepare_duplicacy_scripting()
 	
 	LOGFILE="${LOGS_PATH}/backup-$(date '+%Y-%m-%d-%H-%M-%S')"
 	{
-		echo "Running in ${REPOSITORY_ROOT} as $(id -un):$(id -gn)"
-	    cd "${REPOSITORY_ROOT}"
-	    "${DUPLICASY_CLI_PATH}" ${DUPLICACY_GLOBAL_OPTIONS} backup ${DUPLICACY_BACKUP_OPTIONS} &
+		echo "Running in ${DUPLICACY_CONFIG_ROOT} as $(id -un):$(id -gn)"
+	    cd "${DUPLICACY_CONFIG_ROOT}"
+	    "${DUPLICACY_CLI_PATH}" ${DUPLICACY_GLOBAL_OPTIONS} backup ${DUPLICACY_BACKUP_OPTIONS} &
 	    duplicacy=$!
 	
 	    monitor_and_adjust_priority &
@@ -337,7 +338,7 @@ function prepare_duplicacy_scripting()
 function prepare_platypus_wrapper()
 {
 # 	HELPER_APP_DIR='/Library/Application Support/Duplicacy'
-	HELPER_APP_DIR="${DUPLICACY_CONFIG_DIR}"
+	HELPER_APP_DIR="${DUPLICACY_CONFIG_ROOT}"
 	echo "Preparing app wrapper"
 	mkdir -p "${HELPER_APP_DIR}"
 	
@@ -348,14 +349,14 @@ function prepare_platypus_wrapper()
 		--background \
 		--bundled-file  "${DUPLICACY_CLI_PATH}" \
 		--bundle-identifier ${LAUNCHD_BACKUP_NAME} \
-		"${DUPLICACY_CONFIG_DIR}/backup.sh" \
+		"${DUPLICACY_CONFIG_ROOT}/backup.sh" \
 		"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}"
 		
 	echo "Please add \"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}\" to Full Disk Access in System Preferences"
 	
 	open "${HELPER_APP_DIR}"
 	
-	chmod ugo+x /Users/.duplicacy
+# 	chmod ugo+x /Users/.duplicacy
 }
 
 
@@ -364,8 +365,8 @@ if [[ $(id -u) != 0 ]]; then
 	exit $?
 fi
 
-if [ ! -f "${DUPLICACY_CONFIG_DIR}/preferences" ] ; then 
-	echo "Please initialize duplicacy repository at ${REPOSITORY_ROOT} first."
+if [ ! -f "${DUPLICACY_CONFIG_ROOT}/.duplicacy/preferences" ] ; then 
+	echo "Please initialize duplicacy in ${DUPLICACY_CONFIG_ROOT} pointing to correct repository first. See -repository flag."
 	exit 2; 
 fi 
 
