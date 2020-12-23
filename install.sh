@@ -21,11 +21,15 @@ readonly CHECK_POWER_SOURCE_EVERY=60
 # Acceptable values are Latest, Stable, Custom, or specific version
 # readonly REQUESTED_CLI_VERSION="2.7.2"
 # readonly REQUESTED_CLI_VERSION=Latest
-# readonly REQUESTED_CLI_VERSION=Stable
-readonly REQUESTED_CLI_VERSION=Custom
+readonly REQUESTED_CLI_VERSION=Stable
+# readonly REQUESTED_CLI_VERSION=Custom
 readonly DUPLICACY_CUSTOM_BINARY=/Library/Duplicacy/duplicacy_osx_custom
 
+
+readonly DUPLICACY_GLOBAL_OPTIONS=
+readonly DUPLICACY_BACKUP_OPTIONS="-vss -threads 4"
 # launchd schedule to run backup task. see man launchd.plist for configuration help 
+# Run backup hourly
 readonly LAUNCHD_BACKUP_SCHEDULE=$(cat <<- EOF
 	    <key>StartCalendarInterval</key>
 	    <dict>
@@ -35,15 +39,13 @@ readonly LAUNCHD_BACKUP_SCHEDULE=$(cat <<- EOF
 EOF
 )
 
-readonly DUPLICACY_GLOBAL_OPTIONS=
-readonly DUPLICACY_BACKUP_OPTIONS="-vss -threads 4"
 
 # Retention
 # After two weeks keep a version every day
 # After 90 days keep a version every week
 # After one year keep a version every month
 readonly DUPLICACY_PRUNE_OPTIONS=" -keep 31:360 -keep 7:90 -keep 1:14 -all"
-
+# Run prune weekly
 readonly LAUNCHD_PRUNE_SCHEDULE=$(cat <<- EOF
 	    <key>StartCalendarInterval</key>
 	    <dict>
@@ -56,7 +58,7 @@ readonly LAUNCHD_PRUNE_SCHEDULE=$(cat <<- EOF
 	    </dict>
 EOF
 )
-
+# Where duplicacy is initialized 
 readonly DUPLICACY_CONFIG_ROOT="/Library/Duplicacy"
 
 ## ---------------------------------------------------
