@@ -64,6 +64,7 @@ readonly REPOSITORY_ROOT='/Users'
 readonly DOWNLOAD_ROOT='https://github.com/gilbertchen/duplicacy/releases/download'
 readonly LOGS_PATH='/Library/Logs/Duplicacy'
 readonly LAUNCHD_BACKUP_NAME='com.duplicacy.backup'
+readonly HELPER_BACKUP_APP_NAME='Duplicacy-Backup.app'
 readonly LAUNCHD_PRUNE_NAME='com.duplicacy.prune'
 
 # Derivatives
@@ -99,18 +100,18 @@ function update_duplicacy_binary()
 	# Determine required version
 	case "${REQUESTED_CLI_VERSION}" in 
 	Stable|stable) 
-		check_utilities cpulimit wget jq curl || return $?
+		check_utilities platypus cpulimit wget jq curl || return $?
 		SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.stable' 2>/dev/null) 
 		;;
 	Latest|latest) 
-		check_utilities cpulimit wget jq curl || return $?
+		check_utilities platypus cpulimit wget jq curl || return $?
 		SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.latest' 2>/dev/null) 
 		;;
 	Custom|custom) 
-		check_utilities cpulimit || return $?
+		check_utilities platypus cpulimit || return $?
 		;;
 	*) 
-		check_utilities cpulimit wget || return $?
+		check_utilities platypus cpulimit wget || return $?
 		if [[ "${REQUESTED_CLI_VERSION}"  =~ ^[0-9.]+$ ]] ; then 
 			SELECTED_VERSION="${REQUESTED_CLI_VERSION}" 
 		else 
@@ -172,7 +173,7 @@ function prepare_launchd_backup_plist()
 	    <string>${LAUNCHD_BACKUP_NAME}</string>
 	
 	    <key>Program</key>
-	    <string>${DUPLICACY_CONFIG_DIR}/backup.sh</string>
+	    <string>${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}/Contents/MacOS/${HELPER_BACKUP_APP_NAME%.*}</string>
 	
 	${LAUNCHD_BACKUP_SCHEDULE}
 	
@@ -228,6 +229,9 @@ function prepare_duplicacy_scripting()
 
 	cat >> "${PRUNE}" <<- 'EOF'
 	
+	SCRIPTPATH="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+	DUPLICASY_CLI_PATH="${SCRIPTPATH}/${DUPLICACY_NAME}"
+
 	function terminator() {
 	    [ ! -z "$duplicacy" ] && kill -TERM "${duplicacy}" 
 	    duplicacy=
@@ -261,7 +265,7 @@ function prepare_duplicacy_scripting()
 	CPU_LIMIT_AC=${CPU_LIMIT_AC}
 	CPU_LIMIT_BATTERY=${CPU_LIMIT_BATTERY}
 	CPU_LIMITER_PATH="${CPU_LIMITER_PATH}"
-	DUPLICASY_CLI_PATH="${DUPLICACY_CLI_PATH}"
+	DUPLICACY_NAME="$(basename "${DUPLICACY_CLI_PATH}")"
 	DUPLICACY_GLOBAL_OPTIONS="${DUPLICACY_GLOBAL_OPTIONS}"
 	DUPLICACY_BACKUP_OPTIONS="${DUPLICACY_BACKUP_OPTIONS}"
 	CHECK_POWER_SOURCE_EVERY="${CHECK_POWER_SOURCE_EVERY}"
@@ -271,6 +275,9 @@ function prepare_duplicacy_scripting()
 
 	cat >> "${BACKUP}" <<- 'EOF'
 	
+	SCRIPTPATH="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+	DUPLICASY_CLI_PATH="${SCRIPTPATH}/${DUPLICACY_NAME}"
+
 	function terminator() {
 	    [ ! -z "$duplicacy" ] && kill -TERM "${duplicacy}" 
 	    duplicacy=
@@ -309,6 +316,7 @@ function prepare_duplicacy_scripting()
 	
 	LOGFILE="${LOGS_PATH}/backup-$(date '+%Y-%m-%d-%H-%M-%S')"
 	{
+		echo "Running in ${REPOSITORY_ROOT} as $(id -un):$(id -gn)"
 	    cd "${REPOSITORY_ROOT}"
 	    "${DUPLICASY_CLI_PATH}" ${DUPLICACY_GLOBAL_OPTIONS} backup ${DUPLICACY_BACKUP_OPTIONS} &
 	    duplicacy=$!
@@ -318,12 +326,36 @@ function prepare_duplicacy_scripting()
 	
 	    wait ${duplicacy}
 	    duplicacy=
-	} > "${LOGFILE}.log" 2> "${LOGFILE}.err"
+	} > >(tee "${LOGFILE}.log") 2> >(tee "${LOGFILE}.err")
 	
 	EOF
 
 	chmod +x "${BACKUP}"|| exit $?
 	return 0;
+}
+
+function prepare_platypus_wrapper()
+{
+# 	HELPER_APP_DIR='/Library/Application Support/Duplicacy'
+	HELPER_APP_DIR="${DUPLICACY_CONFIG_DIR}"
+	echo "Preparing app wrapper"
+	mkdir -p "${HELPER_APP_DIR}"
+	
+	platypus --overwrite \
+		--name "${HELPER_BACKUP_APP_NAME%.*}" \
+		--interface-type 'None' \
+		--quit-after-execution \
+		--background \
+		--bundled-file  "${DUPLICACY_CLI_PATH}" \
+		--bundle-identifier ${LAUNCHD_BACKUP_NAME} \
+		"${DUPLICACY_CONFIG_DIR}/backup.sh" \
+		"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}"
+		
+	echo "Please add \"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}\" to Full Disk Access in System Preferences"
+	
+	open "${HELPER_APP_DIR}"
+	
+	chmod ugo+x /Users/.duplicacy
 }
 
 
@@ -347,6 +379,8 @@ launchctl unload "${LAUNCHD_PRUNE_PLIST}" 2>/dev/null
 
 update_duplicacy_binary || exit $?
 prepare_duplicacy_scripting || exit $?
+prepare_platypus_wrapper || exit $?
+
 prepare_launchd_backup_plist || exit $?
 prepare_launchd_prune_plist || exit $?
 
