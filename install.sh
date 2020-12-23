@@ -353,7 +353,7 @@ function prepare_platypus_wrapper()
 		--bundled-file  "${DUPLICACY_CLI_PATH}" \
 		--bundle-identifier ${LAUNCHD_BACKUP_NAME} \
 		"${DUPLICACY_CONFIG_ROOT}/backup.sh" \
-		"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}"
+		"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}" || exit $?
 		
 	echo "Please add \"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}\" to Full Disk Access in System Preferences. Remove existing one if present."	
 	open "${HELPER_APP_DIR}"
