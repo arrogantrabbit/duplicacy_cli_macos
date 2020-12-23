@@ -1,8 +1,9 @@
 #!/bin/bash
 
 ## Prerequisites:
-# Working duplicacy repository located at /Users. In other words, running 
-# "cd /Users && duplicacy backup" shall work.
+# - HomeBrew
+# - Working duplicacy repository located at /Library/Duplicacy and pointing to /Users. 
+#   In other words, running "cd /Library/Duplicacy && sudo duplicacy backup" shall work.
 
 
 ## Configuration
@@ -56,6 +57,8 @@ readonly LAUNCHD_PRUNE_SCHEDULE=$(cat <<- EOF
 EOF
 )
 
+readonly DUPLICACY_CONFIG_ROOT="/Library/Duplicacy"
+
 ## ---------------------------------------------------
 ## Should not need to modify anything below this line.
 
@@ -67,7 +70,6 @@ readonly HELPER_BACKUP_APP_NAME='Duplicacy-Backup.app'
 readonly LAUNCHD_PRUNE_NAME='com.duplicacy.prune'
 
 # Derivatives
-readonly DUPLICACY_CONFIG_ROOT="/Library/Duplicacy"
 readonly LAUNCHD_BACKUP_PLIST="/Library/LaunchDaemons/${LAUNCHD_BACKUP_NAME}.plist"
 readonly LAUNCHD_PRUNE_PLIST="/Library/LaunchDaemons/${LAUNCHD_PRUNE_NAME}.plist"
 
@@ -337,7 +339,6 @@ function prepare_duplicacy_scripting()
 
 function prepare_platypus_wrapper()
 {
-# 	HELPER_APP_DIR='/Library/Application Support/Duplicacy'
 	HELPER_APP_DIR="${DUPLICACY_CONFIG_ROOT}"
 	echo "Preparing app wrapper"
 	mkdir -p "${HELPER_APP_DIR}"
@@ -352,11 +353,8 @@ function prepare_platypus_wrapper()
 		"${DUPLICACY_CONFIG_ROOT}/backup.sh" \
 		"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}"
 		
-	echo "Please add \"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}\" to Full Disk Access in System Preferences"
-	
+	echo "Please add \"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}\" to Full Disk Access in System Preferences. Remove existing one if present."	
 	open "${HELPER_APP_DIR}"
-	
-# 	chmod ugo+x /Users/.duplicacy
 }
 
 
@@ -386,10 +384,15 @@ prepare_launchd_backup_plist || exit $?
 prepare_launchd_prune_plist || exit $?
 
 
-echo Loading the daemon "${LAUNCHD_BACKUP_NAME}"
+echo "Loading the daemon \"${LAUNCHD_BACKUP_NAME}\""
 launchctl load -w "${LAUNCHD_BACKUP_PLIST}" || exit $?
 
-echo Loading the daemon "${LAUNCHD_PRUNE_NAME}"
+echo "Loading the daemon \"${LAUNCHD_PRUNE_NAME}\""
 launchctl load -w "${LAUNCHD_PRUNE_PLIST}" || exit $?
+
+echo "To manually start or stop the backup run"
+echo "sudo launchctl start \"${LAUNCHD_BACKUP_NAME}\""
+echo "sudo launchctl stop \"${LAUNCHD_BACKUP_NAME}\""
+
 
 echo Success.
