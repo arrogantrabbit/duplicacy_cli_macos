@@ -1,6 +1,6 @@
 This is a handy script to download and install duplicacy_cli to run under launchd and backup all users, without the need to disable SIP
 
-## The problem.
+## The problem
 
 Duplicacy CLI on macOS cannot access sensitive user folders such as Documents and Pictures when ran standalone. It does not seem to be possible to grant full disk access to a naked executable that is not an app bundle. When launched via Duplicacy GUI that problem does not exist as the CLI engines inherits permissions granted to the parent app bundle.
 
