@@ -232,9 +232,6 @@ function prepare_duplicacy_scripting()
 
 	cat >> "${PRUNE}" <<- 'EOF'
 	
-	SCRIPTPATH="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
-	DUPLICACY_CLI_PATH="${SCRIPTPATH}/${DUPLICACY_NAME}"
-
 	function terminator() {
 	    [ ! -z "$duplicacy" ] && kill -TERM "${duplicacy}" 
 	    duplicacy=
