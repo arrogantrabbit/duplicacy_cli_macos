@@ -98,8 +98,6 @@ function check_utilities()
 #
 function update_duplicacy_binary()
 {
-	mkdir -p "${DUPLICACY_CONFIG_ROOT}/.duplicacy"
-	
 	# Determine required version
 	case "${REQUESTED_CLI_VERSION}" in 
 	Stable|stable) 
