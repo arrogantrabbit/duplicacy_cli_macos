@@ -247,7 +247,8 @@ function prepare_duplicacy_scripting()
 	
 	    wait ${duplicacy}
 	    duplicacy=
-	} > "${LOGFILE}.log" 2> "${LOGFILE}.err"
+	} > >(tee "${LOGFILE}.log") 2> >(tee "${LOGFILE}.err")
+
 	
 	EOF
 
