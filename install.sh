@@ -5,7 +5,6 @@
 # - Working duplicacy repository located at /Library/Duplicacy and pointing to /Users. 
 #   In other words, running "cd /Library/Duplicacy && sudo duplicacy backup" shall work.
 
-
 ## Configuration
  
 # CPU limit when on AC power
@@ -85,8 +84,8 @@ function check_utilities()
 	do
 		if ! command -v $cmd > /dev/null
 		then
-				printf "%12s Missing\n" "$cmd"
-				error_code=1;
+			printf "%12s Missing\n" "$cmd"
+			error_code=1;
 		else
 			printf "%12s OK\n" "$cmd"
 		fi
@@ -151,7 +150,6 @@ function update_duplicacy_binary()
 		fi 	
 		;;
 	esac
-
 
 	return 0
 }
@@ -302,7 +300,7 @@ function prepare_duplicacy_scripting()
 	    while [ ! -z "$(ps -p $duplicacy -o pid=)" ] ; do 
 	        local new_limit=$(calculate_target_cpulimit)
 	        if [[ "$last_limit" != "$new_limit" ]] ; then
-	            echo Setting new cpu limit $new_limit
+	            echo "Setting new cpu limit $new_limit"
 	            
 	            "${CPU_LIMITER_PATH}" --limit=${new_limit} --include-children --pid=${duplicacy} &
 	            
@@ -355,7 +353,6 @@ function prepare_platypus_wrapper()
 	open "${HELPER_APP_DIR}"
 }
 
-
 if [[ $(id -u) != 0 ]]; then
 	sudo -p 'Restarting as root, password: ' bash $0 "$@"
 	exit $?
@@ -393,4 +390,4 @@ echo "sudo launchctl start \"${LAUNCHD_BACKUP_NAME}\""
 echo "sudo launchctl stop \"${LAUNCHD_BACKUP_NAME}\""
 
 
-echo Success.
+echo "Success."
