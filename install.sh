@@ -235,6 +235,8 @@ function prepare_duplicacy_scripting()
 	
 	trap terminator SIGHUP SIGINT SIGQUIT SIGTERM EXIT
 	
+	mkdir -p ${LOGS_PATH}
+	
 	LOGFILE="${LOGS_PATH}/prune-$(date '+%Y-%m-%d-%H-%M-%S')"
 	{
 	    cd "${DUPLICACY_CONFIG_ROOT}"
@@ -313,6 +315,8 @@ function prepare_duplicacy_scripting()
 	    done
 	}
 	
+	mkdir -p ${LOGS_PATH}
+	
 	LOGFILE="${LOGS_PATH}/backup-$(date '+%Y-%m-%d-%H-%M-%S')"
 	{
 		echo "Running in ${DUPLICACY_CONFIG_ROOT} as $(id -un):$(id -gn)"
@@ -362,6 +366,9 @@ if [ ! -f "${DUPLICACY_CONFIG_ROOT}/.duplicacy/preferences" ] ; then
 	echo "Please initialize duplicacy in ${DUPLICACY_CONFIG_ROOT} pointing to correct repository first. See -repository flag."
 	exit 2; 
 fi 
+
+# Exclude the cache folder from time machine
+tmutil addexclusion "${DUPLICACY_CONFIG_ROOT}/.duplicacy/cache"
 
 echo "Stopping and unloading existing daemons"
 launchctl stop "${LAUNCHD_BACKUP_NAME}" 2>/dev/null
