@@ -72,7 +72,6 @@ RSTCLR=$(tput sgr 0)
 readonly DOWNLOAD_ROOT='https://github.com/gilbertchen/duplicacy/releases/download'
 readonly LOGS_PATH='/Library/Logs/Duplicacy'
 readonly LAUNCHD_BACKUP_NAME='com.duplicacy.backup'
-readonly HELPER_BACKUP_APP_NAME='Duplicacy-Backup.app'
 readonly LAUNCHD_PRUNE_NAME='com.duplicacy.prune'
 
 # Derivatives
@@ -179,7 +178,7 @@ function prepare_launchd_backup_plist()
 	    <string>${LAUNCHD_BACKUP_NAME}</string>
 	
 	    <key>Program</key>
-	    <string>${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}/Contents/MacOS/${HELPER_BACKUP_APP_NAME%.*}</string>
+	    <string>${DUPLICACY_CONFIG_ROOT}/backup.sh</string>
 	
 	${LAUNCHD_BACKUP_SCHEDULE}
 	
@@ -346,22 +345,18 @@ function prepare_duplicacy_scripting()
 }
 
 
-function prepare_app_wrapper()
+function request_full_disk_access()
 {
-	HELPER_APP_DIR="${DUPLICACY_CONFIG_ROOT}"
-	rm -rf "${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}"
-	
-	echo "Preparing app wrapper"
-	mkdir -p "${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}/Contents/MacOS"
-	
-	ln -s "${DUPLICACY_CONFIG_ROOT}/backup.sh" "${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}/Contents/MacOS/${HELPER_BACKUP_APP_NAME%.*}"
-
-	echo .
-	echo "*** ${FNCCLR}Please drag \"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}\" and \"${DUPLICACY_CLI_PATH}\" to Full Disk Access in System Preferences.${RSTCLR} ***"
-	echo "*** ${FNCCLR}Remove existing one if present.${RSTCLR} ***"	
-	echo .
-
-	open "${HELPER_APP_DIR}"
+	echo
+	echo "*** ${FNCCLR}Please drag \"${REDCLR}${DUPLICACY_CLI_PATH}${FNCCLR}\" to Full Disk Access in System Preferences.${RSTCLR} ***"
+	echo "*** ${FNCCLR}Remove existing one if present.${RSTCLR} ***"
+	echo
+	echo "Press enter to open the folder in Finder, and System Preferences, drag the file, and then return to this window to proceed. "
+	read
+	open -R "${DUPLICACY_CLI_PATH}"
+	open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
+	echo "Press enter to proceed with the configuration"
+	read
 }
 
 
@@ -390,7 +385,7 @@ launchctl unload "${LAUNCHD_PRUNE_PLIST}" 2>/dev/null
 
 update_duplicacy_binary || exit $?
 prepare_duplicacy_scripting || exit $?
-prepare_app_wrapper || exit $?
+request_full_disk_access || exit $?
 
 prepare_launchd_backup_plist || exit $?
 prepare_launchd_prune_plist || exit $?
