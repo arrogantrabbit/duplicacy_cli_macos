@@ -5,47 +5,48 @@
 # - Working duplicacy repository located at /Library/Duplicacy and pointing to /Users. 
 #   In other words, running "cd /Library/Duplicacy && sudo duplicacy backup" shall work.
 
-## Configuration
+## Overridable configuration
  
 # CPU limit when on AC power
-readonly CPU_LIMIT_AC=40
+: "${CPU_LIMIT_AC:="40"}"
 
 # CPU limit when on Battery power
-readonly CPU_LIMIT_BATTERY=10
+: "${CPU_LIMIT_BATTERY:="10"}"
 
 # AC/Battery check interval in sectons
-readonly CHECK_POWER_SOURCE_EVERY=60
+: "${CHECK_POWER_SOURCE_EVERY:="60"}"
 
 # Duplicacy version
 # Acceptable values are Latest, Stable, Custom, or specific version
-# readonly REQUESTED_CLI_VERSION="2.7.2"
-# readonly REQUESTED_CLI_VERSION=Latest
-readonly REQUESTED_CLI_VERSION=Stable
-# readonly REQUESTED_CLI_VERSION=Custom
-readonly DUPLICACY_CUSTOM_BINARY=/Library/Duplicacy/duplicacy_osx_custom
+# REQUESTED_CLI_VERSION="2.7.2"
+# EQUESTED_CLI_VERSION=Latest
+: "${REQUESTED_CLI_VERSION:="Stable"}"
+# REQUESTED_CLI_VERSION=Custom
+: "${DUPLICACY_CUSTOM_BINARY:="/Library/Duplicacy/duplicacy_osx_custom"}"
 
 
-readonly DUPLICACY_GLOBAL_OPTIONS=
-readonly DUPLICACY_BACKUP_OPTIONS="-vss -threads 4"
+: "${DUPLICACY_GLOBAL_OPTIONS=""}"
+: "${DUPLICACY_BACKUP_OPTIONS="-vss -threads 4"}"
 # launchd schedule to run backup task. see man launchd.plist for configuration help 
 # Run backup hourly
-readonly LAUNCHD_BACKUP_SCHEDULE=$(cat <<- EOF
+
+: "${LAUNCHD_BACKUP_SCHEDULE:="$(cat <<- EOF
 	    <key>StartCalendarInterval</key>
 	    <dict>
 	        <key>Minute</key>
 	        <integer>0</integer>
 	    </dict>
 EOF
-)
+)"}"
 
 
 # Retention
 # After two weeks keep a version every day
 # After 90 days keep a version every week
 # After one year keep a version every month
-readonly DUPLICACY_PRUNE_OPTIONS=" -keep 31:360 -keep 7:90 -keep 1:14 -all"
+: "${DUPLICACY_PRUNE_OPTIONS=" -keep 31:360 -keep 7:90 -keep 1:14 -all"}"
 # Run prune weekly
-readonly LAUNCHD_PRUNE_SCHEDULE=$(cat <<- EOF
+: "${LAUNCHD_PRUNE_SCHEDULE:="$(cat <<- EOF
 	    <key>StartCalendarInterval</key>
 	    <dict>
 	        <key>Weekday</key>
@@ -56,9 +57,10 @@ readonly LAUNCHD_PRUNE_SCHEDULE=$(cat <<- EOF
 	        <integer>0</integer>
 	    </dict>
 EOF
-)
+)"}"
+
 # Where duplicacy is initialized 
-readonly DUPLICACY_CONFIG_ROOT="/Library/Duplicacy"
+: "${DUPLICACY_CONFIG_ROOT:="/Library/Duplicacy"}"
 
 ## ---------------------------------------------------
 ## Should not need to modify anything below this line.
@@ -121,8 +123,6 @@ function update_duplicacy_binary()
 		;;
 	esac
 
-	# Find correct architecture 
-	# 
 	MACHINE_ARCH=$(uname -m)
 
 	case "${REQUESTED_CLI_VERSION}" in 
