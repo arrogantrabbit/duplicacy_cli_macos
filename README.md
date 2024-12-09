@@ -15,7 +15,7 @@ We will write a script to accomplish the following tasks:
 
 - Fetch the specified version of duplicacy from the web or local build directly. Support specific version number, specific local path, and "Latest" and "Stable" channels.
 - Create aux script to launch and throttle duplicacy_cli depending on power status of your mac -- support separate limits on battery vs on wall power. (cpulimit)
-- Wrap the scripts into macOS app bundle that can be granted Full Disk Access
+- Prompt to give the duplicacy executable full disk access
 - Configure launchd daemon to run the backup and prune with configurable retention policy
 
 ## Prerequisities
@@ -36,4 +36,8 @@ We will assume that the following is true:
 
 Clone the repository https://github.com/arrogantrabbit/duplicacy_cli_macos, review the `install.sh` file; make changes as needed to the schedule and/or duplicacy version and run.
 
-The script will generate wrapper executable and open Finder in the enclosed folder -- please drag the app bundle to the `Full Disk Access` section in the Security & Privacy, Privacy, Full Disk Access.
+It's also possible to override the environment variables without editing the file. For example, do use a specific version of duplicacy one might run: 
+
+    REQUESTED_CLI_VERSION=3.2.4 ./install.sh
+
+The script will open Finder and highlight an executable to be dragged to the `Full Disk Access` section in the Security & Privacy.
