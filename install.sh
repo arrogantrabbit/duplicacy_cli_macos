@@ -371,8 +371,10 @@ if [ ! -f "${DUPLICACY_CONFIG_ROOT}/.duplicacy/preferences" ] ; then
 	exit 2; 
 fi 
 
-echo "Excluding the cache folder from time machine backups"
-tmutil addexclusion "${DUPLICACY_CONFIG_ROOT}/.duplicacy/cache"
+if [[ "$(tmutil isexcluded "${DUPLICACY_CONFIG_ROOT}/.duplicacy/cache")" != *"[Excluded]"* ]]; then
+	echo "Excluding the cache folder from time machine backups"
+	tmutil addexclusion "${DUPLICACY_CONFIG_ROOT}/.duplicacy/cache"
+fi
 
 echo "Stopping and unloading existing daemons"
 launchctl stop "${LAUNCHD_BACKUP_NAME}" 2>/dev/null
