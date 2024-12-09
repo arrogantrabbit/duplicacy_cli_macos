@@ -15,7 +15,7 @@ We will write a script to accomplish the following tasks:
 
 - Fetch the specified version of duplicacy from the web or local build directly. Support specific version number, specific local path, and "Latest" and "Stable" channels.
 - Create aux script to launch and throttle duplicacy_cli depending on power status of your mac -- support separate limits on battery vs on wall power. (cpulimit)
-- Wrap the scripts into macOS app bundle that can be granted Full Disk Access (platypus)
+- Wrap the scripts into macOS app bundle that can be granted Full Disk Access
 - Configure launchd daemon to run the backup and prune with configurable retention policy
 
 ## Prerequisities
@@ -27,7 +27,7 @@ We will assume that the following is true:
     cd /Library/duplicacy
     sudo duplicacy init -repository /Users <snapshot id> <storage url>
     ```
-- [homebrew](https://brew.sh) is installed. Depending on the configuration we would need one or few of the following utilities: `platypus`, `cpulimit`, `wget`, `jq`, `curl`. The script will prompt for the missing ones, which then could be installed with
+- [homebrew](https://brew.sh) is installed. Depending on the configuration we would need one or few of the following utilities: `cpulimit`, `wget`, `jq`, `curl`. The script will prompt for the missing ones, which then could be installed with
     ```bash
     brew install platypus cpulimit wget jq curl
     ```

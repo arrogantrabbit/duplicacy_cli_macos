@@ -65,6 +65,9 @@ EOF
 ## ---------------------------------------------------
 ## Should not need to modify anything below this line.
 
+FNCCLR=$(tput setaf 2)
+REDCLR=$(tput setaf 1)
+RSTCLR=$(tput sgr 0)
 # Setup
 readonly DOWNLOAD_ROOT='https://github.com/gilbertchen/duplicacy/releases/download'
 readonly LOGS_PATH='/Library/Logs/Duplicacy'
@@ -102,18 +105,18 @@ function update_duplicacy_binary()
 	# Determine required version
 	case "${REQUESTED_CLI_VERSION}" in 
 	Stable|stable) 
-		check_utilities platypus cpulimit wget jq curl || return $?
+		check_utilities cpulimit wget jq curl || return $?
 		SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.stable' 2>/dev/null) 
 		;;
 	Latest|latest) 
-		check_utilities platypus cpulimit wget jq curl || return $?
+		check_utilities cpulimit wget jq curl || return $?
 		SELECTED_VERSION=$(curl -s 'https://duplicacy.com/latest_cli_version' |jq -r '.latest' 2>/dev/null) 
 		;;
 	Custom|custom) 
-		check_utilities platypus cpulimit || return $?
+		check_utilities cpulimit || return $?
 		;;
 	*) 
-		check_utilities platypus cpulimit wget || return $?
+		check_utilities cpulimit wget || return $?
 		if [[ "${REQUESTED_CLI_VERSION}"  =~ ^[0-9.]+$ ]] ; then 
 			SELECTED_VERSION="${REQUESTED_CLI_VERSION}" 
 		else 
@@ -274,12 +277,13 @@ function prepare_duplicacy_scripting()
 	CHECK_POWER_SOURCE_EVERY="${CHECK_POWER_SOURCE_EVERY}"
 	LOGS_PATH="${LOGS_PATH}"
 	DUPLICACY_CONFIG_ROOT="${DUPLICACY_CONFIG_ROOT}"
+	DUPLICACY_CLI_PATH="${DUPLICACY_CLI_PATH}"
 	EOF
 
 	cat >> "${BACKUP}" <<- 'EOF'
 	
 	SCRIPTPATH="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
-	DUPLICACY_CLI_PATH="${SCRIPTPATH}/${DUPLICACY_NAME}"
+#  	DUPLICACY_CLI_PATH="${SCRIPTPATH}/../Resources/${DUPLICACY_NAME}"
 
 	function terminator() {
 			echo termination signal received
@@ -341,25 +345,25 @@ function prepare_duplicacy_scripting()
 	return 0;
 }
 
-function prepare_platypus_wrapper()
+
+function prepare_app_wrapper()
 {
 	HELPER_APP_DIR="${DUPLICACY_CONFIG_ROOT}"
-	echo "Preparing app wrapper"
-	mkdir -p "${HELPER_APP_DIR}"
+	rm -rf "${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}"
 	
-	platypus --overwrite \
-		--name "${HELPER_BACKUP_APP_NAME%.*}" \
-		--interface-type 'None' \
-		--quit-after-execution \
-		--background \
-		--bundled-file  "${DUPLICACY_CLI_PATH}" \
-		--bundle-identifier ${LAUNCHD_BACKUP_NAME} \
-		"${DUPLICACY_CONFIG_ROOT}/backup.sh" \
-		"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}" || exit $?
-		
-	echo "Please add \"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}\" to Full Disk Access in System Preferences. Remove existing one if present."	
+	echo "Preparing app wrapper"
+	mkdir -p "${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}/Contents/MacOS"
+	
+	ln -s "${DUPLICACY_CONFIG_ROOT}/backup.sh" "${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}/Contents/MacOS/${HELPER_BACKUP_APP_NAME%.*}"
+
+	echo .
+	echo "*** ${FNCCLR}Please drag \"${HELPER_APP_DIR}/${HELPER_BACKUP_APP_NAME}\" and \"${DUPLICACY_CLI_PATH}\" to Full Disk Access in System Preferences.${RSTCLR} ***"
+	echo "*** ${FNCCLR}Remove existing one if present.${RSTCLR} ***"	
+	echo .
+
 	open "${HELPER_APP_DIR}"
 }
+
 
 if [[ $(id -u) != 0 ]]; then
 	sudo -p 'Restarting as root, password: ' bash "$0" "$@"
@@ -386,7 +390,7 @@ launchctl unload "${LAUNCHD_PRUNE_PLIST}" 2>/dev/null
 
 update_duplicacy_binary || exit $?
 prepare_duplicacy_scripting || exit $?
-prepare_platypus_wrapper || exit $?
+prepare_app_wrapper || exit $?
 
 prepare_launchd_backup_plist || exit $?
 prepare_launchd_prune_plist || exit $?
