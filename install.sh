@@ -121,6 +121,10 @@ function update_duplicacy_binary()
 		;;
 	esac
 
+	# Find correct architecture 
+	# 
+	MACHINE_ARCH=$(uname -m)
+
 	case "${REQUESTED_CLI_VERSION}" in 
 	Custom|custom) 
 		DUPLICACY_CLI_PATH="${DUPLICACY_CUSTOM_BINARY}"
@@ -133,12 +137,12 @@ function update_duplicacy_binary()
 		fi
 		;;
 	*)
-		DUPLICACY_CLI_PATH="${DUPLICACY_CONFIG_ROOT}/duplicacy_osx_x64_${SELECTED_VERSION}"
+		DUPLICACY_CLI_PATH="${DUPLICACY_CONFIG_ROOT}/duplicacy_osx_${MACHINE_ARCH}_${SELECTED_VERSION}"
 		if [ -f "${DUPLICACY_CLI_PATH}" ] 
 		then
 			echo "Version ${SELECTED_VERSION} is up to date"
 		else
-			DOWNLOAD_URL="${DOWNLOAD_ROOT}/v${SELECTED_VERSION}/duplicacy_osx_x64_${SELECTED_VERSION}"
+			DOWNLOAD_URL="${DOWNLOAD_ROOT}/v${SELECTED_VERSION}/duplicacy_osx_${MACHINE_ARCH}_${SELECTED_VERSION}"
 			if wget -O "${DUPLICACY_CLI_PATH}" "${DOWNLOAD_URL}" ; then 
 				chmod u=rwx,g=rx,o=rx "${DUPLICACY_CLI_PATH}"
 				echo "Updated to ${SELECTED_VERSION}"
@@ -367,7 +371,7 @@ if [ ! -f "${DUPLICACY_CONFIG_ROOT}/.duplicacy/preferences" ] ; then
 	exit 2; 
 fi 
 
-# Exclude the cache folder from time machine
+echo "Excluding the cache folder from time machine backups"
 tmutil addexclusion "${DUPLICACY_CONFIG_ROOT}/.duplicacy/cache"
 
 echo "Stopping and unloading existing daemons"
