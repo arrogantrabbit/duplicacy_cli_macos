@@ -80,9 +80,9 @@ readonly LAUNCHD_PRUNE_PLIST="/Library/LaunchDaemons/${LAUNCHD_PRUNE_NAME}.plist
 function check_utilities()
 {
 	local error_code=0
-	for cmd in $@
+	for cmd in "$@"
 	do
-		if ! command -v $cmd > /dev/null
+		if ! command -v "$cmd" > /dev/null
 		then
 			printf "%12s Missing\n" "$cmd"
 			error_code=1;
@@ -362,7 +362,7 @@ function prepare_platypus_wrapper()
 }
 
 if [[ $(id -u) != 0 ]]; then
-	sudo -p 'Restarting as root, password: ' bash $0 "$@"
+	sudo -p 'Restarting as root, password: ' bash "$0" "$@"
 	exit $?
 fi
 
