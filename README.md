@@ -24,12 +24,12 @@ We will assume that the following is true:
 - Duplicacy is configured under `/Library/Duplicacy` to backup `/Users`. This boils down to doing something along these lines when initializing the repository:
     ```bash
     sudo mkdir -p /Library/Duplicacy
-    cd /Library/duplicacy
+    cd /Library/Duplicacy
     sudo duplicacy init -repository /Users <snapshot id> <storage url>
     ```
 - [homebrew](https://brew.sh) is installed. Depending on the configuration we would need one or few of the following utilities: `cpulimit`, `wget`, `jq`, `curl`. The script will prompt for the missing ones, which then could be installed with
     ```bash
-    brew install platypus cpulimit wget jq curl
+    brew install cpulimit wget jq curl
     ```
 
 ## To run
