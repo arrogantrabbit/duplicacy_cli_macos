@@ -2,12 +2,13 @@ This is a handy script to download and install duplicacy_cli to run under launch
 
 ## The problem
 
-Duplicacy CLI on macOS cannot access sensitive user folders such as Documents and Pictures when ran standalone. It does not seem to be possible to grant full disk access to a naked executable that is not an app bundle. When launched via Duplicacy GUI that problem does not exist as the CLI engines inherits permissions granted to the parent app bundle.
+Duplicacy CLI on macOS used to not be able to access sensitive user folders such as Documents and Pictures when ran standalone. It dis not seem to be possible to grant full disk access to a naked executable that is not an app bundle. When launched via Duplicacy GUI that problem did not exist as the CLI engines inherits permissions granted to the parent app bundle. 
 
-Using Duplicacy GUI however is undesirable for several reasons:
+This problem no longer exists, however using Duplicacy GUI is still undesirable for several reasons:
 
 - It's impossible to control CPU utilization of the CLI engine (without jumping through hoops)
 - Running closed source app that fetches executables from the internet under account that needs access to all users data is sub-optimal.
+- macOS already has a perfectly good scheduler. 
 
 ## The solution
 
